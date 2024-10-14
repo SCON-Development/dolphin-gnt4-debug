@@ -1031,17 +1031,42 @@ bool Jit64::DoJit(u32 em_address, JitBlock* b, u32 nextPC)
     }
     else
     {
+      // TODO: This is problematic because it is currently called at the start of seq_parse/SEQ_Exec.
+      // The JIT will run at the start of the method and this specific line of code will be hit once for each
+      // opcode in the method.
       auto& cpu = m_system.GetCPU();
       auto& power_pc = m_system.GetPowerPC();
-      if (IsDebuggingEnabled() && power_pc.GetBreakPoints().IsAddressBreakPoint(op.address) &&
-          !cpu.IsStepping())
+      auto& memory = m_system.GetMemory();
+      auto& game_id = SConfig::GetInstance().GetGameID();
+      auto& gnt4 = "G4NJDA";
+      auto& scon4 = "SG4JDA";
+      auto& qole = "G4QJDA";
+      bool isSeqBreakpoint = false;
+      if ((game_id == gnt4) || (game_id == scon4) || (game_id == qole))
+      {
+        switch (op.address)
+        {
+        case 0x800c903c:
+        case 0x800c9094:
+        case 0x800c9138:
+        case 0x800c91a0:
+        case 0x800c8e30:
+        case 0x800c8ef8:
+        case 0x80106f10:
+          isSeqBreakpoint = true;
+          break;
+        }
+      }
+      if (isSeqBreakpoint || (power_pc.GetBreakPoints().IsAddressBreakPoint(op.address) &&
+          !cpu.IsStepping()))
       {
         gpr.Flush();
         fpr.Flush();
 
         MOV(32, PPCSTATE(pc), Imm32(op.address));
         ABI_PushRegistersAndAdjustStack({}, 0);
-        ABI_CallFunctionP(PowerPC::CheckAndHandleBreakPointsFromJIT, &power_pc);
+        // TODO: We likely want our new logic to occur in the below callback since it will be called for this
+        ABI_CallFunctionPP(PowerPC::CheckAndHandleBreakPointsFromJIT, &power_pc, &memory);
         ABI_PopRegistersAndAdjustStack({}, 0);
         MOV(64, R(RSCRATCH), ImmPtr(cpu.GetStatePtr()));
         CMP(32, MatR(RSCRATCH), Imm32(Common::ToUnderlying(CPU::State::Running)));

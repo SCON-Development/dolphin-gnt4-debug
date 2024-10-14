@@ -148,7 +148,7 @@ protected:
   bool bJITBranchOff = false;
   bool bJITRegisterCacheOff = false;
   bool m_enable_profiling = false;
-  bool m_enable_debugging = false;
+  bool m_enable_debugging = true; // always enabled for this Dolphin build
   bool m_enable_branch_following = false;
   bool m_enable_float_exceptions = false;
   bool m_enable_div_by_zero_exceptions = false;
@@ -187,7 +187,7 @@ public:
   ~JitBase() override;
 
   bool IsProfilingEnabled() const { return m_enable_profiling; }
-  bool IsDebuggingEnabled() const { return m_enable_debugging; }
+  bool IsDebuggingEnabled() const { return true; } // always enabled for this Dolphin build
 
   static const u8* Dispatch(JitBase& jit);
   virtual JitBaseBlockCache* GetBlockCache() = 0;

@@ -21,6 +21,7 @@
 #include "Core/Core.h"
 #include "Core/CoreTiming.h"
 #include "Core/HW/CPU.h"
+#include "Core/HW/Memmap.h"
 #include "Core/HW/SystemTimers.h"
 #include "Core/Host.h"
 #include "Core/PowerPC/CPUCoreBase.h"
@@ -30,6 +31,9 @@
 #include "Core/PowerPC/MMU.h"
 #include "Core/PowerPC/PPCSymbolDB.h"
 #include "Core/System.h"
+#include <Core/HW/Memmap.h>
+
+#include <SFML/Network/UdpSocket.hpp>
 
 namespace PowerPC
 {
@@ -726,8 +730,51 @@ void CheckExternalExceptionsFromJIT(PowerPCManager& power_pc)
   power_pc.CheckExternalExceptions();
 }
 
-void CheckAndHandleBreakPointsFromJIT(PowerPCManager& power_pc)
+void CheckAndHandleBreakPointsFromJIT(PowerPCManager& power_pc, Memory::MemoryManager& memory)
 {
+  power_pc.SendSeqUDPPacket(power_pc, memory);
   power_pc.CheckAndHandleBreakPoints();
+}
+
+void PowerPCManager::SendSeqUDPPacket(PowerPCManager& power_pc, Memory::MemoryManager& memory)
+{
+  PowerPCState ppc_state = power_pc.GetPPCState();
+  const u32 pc = ppc_state.pc;
+
+  // The start of the seq file is at*(int*)(seq_p[5] + 0x5c)
+  const u32 seq_p = ppc_state.gpr[3];
+  const u32 temp_p = memory.Read_U32(seq_p + 0x14);
+  const u32 seq_start = memory.Read_U32(temp_p + 0x5c);
+
+  // The current program counter of the seq file is in general purpose register 5
+  const u32 seq_pc = ppc_state.gpr[5];
+
+  // Calculate the offset in the seq file
+  const u32 seq_offset = seq_pc - seq_start;
+  char offset_str[9];
+  snprintf(offset_str, 9, "%08x", seq_offset);
+
+  // Get the file name, which can be found at seq_p[8][5]
+  const u32 file_entry = memory.Read_U32(seq_p + 0x20);
+  auto file_name_str = memory.GetString(file_entry + 0x14);
+
+  // Get the current opcode being executed
+  const u32 opcode = memory.Read_U32(seq_pc);
+  char opcode_str[9];
+  snprintf(opcode_str, 9, "%08x", opcode);
+
+  // Get the program counter
+  char pc_str[9];
+  snprintf(pc_str, 9, "%08x", pc);
+
+  std::string full_str =
+      std::string(offset_str) + " " + opcode_str + " " + pc_str + " " + file_name_str;
+
+  sf::UdpSocket m_socket;
+  if (m_socket.send(full_str.data(), full_str.size(), sf::IpAddress("localhost"), 12198) !=
+      sf::Socket::Status::Done)
+  {
+    ERROR_LOG_FMT(CORE, "SEQ UDPClient send failed");
+  }
 }
 }  // namespace PowerPC

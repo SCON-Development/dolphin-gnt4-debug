@@ -15,11 +15,13 @@
 #include "Core/CPUThreadConfigCallback.h"
 #include "Core/Debugger/BranchWatch.h"
 #include "Core/Debugger/PPCDebugInterface.h"
+#include "Core/HW/Memmap.h"
 #include "Core/PowerPC/BreakPoints.h"
 #include "Core/PowerPC/ConditionRegister.h"
 #include "Core/PowerPC/Gekko.h"
 #include "Core/PowerPC/PPCCache.h"
 #include "Core/PowerPC/PPCSymbolDB.h"
+#include <Core/HW/Memmap.h>
 
 class CPUCoreBase;
 class PointerWrap;
@@ -290,6 +292,8 @@ public:
   u64 ReadFullTimeBaseValue() const;
   void WriteFullTimeBaseValue(u64 value);
 
+  void SendSeqUDPPacket(PowerPCManager& power_pc, Memory::MemoryManager& memory);
+
   PowerPCState& GetPPCState() { return m_ppc_state; }
   const PowerPCState& GetPPCState() const { return m_ppc_state; }
   BreakPoints& GetBreakPoints() { return m_breakpoints; }
@@ -333,7 +337,7 @@ void UpdatePerformanceMonitor(u32 cycles, u32 num_load_stores, u32 num_fp_inst,
 
 void CheckExceptionsFromJIT(PowerPCManager& power_pc);
 void CheckExternalExceptionsFromJIT(PowerPCManager& power_pc);
-void CheckAndHandleBreakPointsFromJIT(PowerPCManager& power_pc);
+void CheckAndHandleBreakPointsFromJIT(PowerPCManager& power_pc, Memory::MemoryManager& memory);
 
 // Easy register access macros.
 #define HID0(ppc_state) ((UReg_HID0&)(ppc_state).spr[SPR_HID0])
