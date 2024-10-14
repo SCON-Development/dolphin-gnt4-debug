@@ -738,16 +738,15 @@ void CheckAndHandleBreakPointsFromJIT(PowerPCManager& power_pc, Memory::MemoryMa
 
 void PowerPCManager::SendSeqUDPPacket(PowerPCManager& power_pc, Memory::MemoryManager& memory)
 {
-  PowerPCState ppc_state = power_pc.GetPPCState();
-  const u32 pc = ppc_state.pc;
+  const u32 pc = m_ppc_state.pc;
 
   // The start of the seq file is at*(int*)(seq_p[5] + 0x5c)
-  const u32 seq_p = ppc_state.gpr[3];
+  const u32 seq_p = m_ppc_state.gpr[3];
   const u32 temp_p = memory.Read_U32(seq_p + 0x14);
   const u32 seq_start = memory.Read_U32(temp_p + 0x5c);
 
   // The current program counter of the seq file is in general purpose register 5
-  const u32 seq_pc = ppc_state.gpr[5];
+  const u32 seq_pc = m_ppc_state.gpr[5];
 
   // Calculate the offset in the seq file
   const u32 seq_offset = seq_pc - seq_start;
