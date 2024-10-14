@@ -12,9 +12,11 @@
 #include "Common/Assert.h"
 #include "Common/ChunkFile.h"
 #include "Common/CommonTypes.h"
+#include "Common/Event.h"
 #include "Common/FPURoundMode.h"
 #include "Common/FloatUtils.h"
 #include "Common/Logging/Log.h"
+#include "Common/WorkQueueThread.h"
 
 #include "Core/CPUThreadConfigCallback.h"
 #include "Core/Config/MainSettings.h"
@@ -67,6 +69,8 @@ PowerPCManager::PowerPCManager(Core::System& system)
     : m_breakpoints(system), m_memchecks(system), m_debug_interface(system, m_symbol_db),
       m_system(system)
 {
+  // Called once on launch
+  InitUDPQueue();
 }
 
 PowerPCManager::~PowerPCManager() = default;
@@ -278,6 +282,7 @@ void PowerPCManager::Init(CPUCore cpu_core)
 
 void PowerPCManager::Reset()
 {
+  // Called once when game starts
   m_ppc_state.pagetable_base = 0;
   m_ppc_state.pagetable_hashmask = 0;
   m_ppc_state.tlb = {};
@@ -305,6 +310,7 @@ void PowerPCManager::ScheduleInvalidateCacheThreadSafe(u32 address)
 
 void PowerPCManager::Shutdown()
 {
+  // called once when game terminates
   CPUThreadConfigCallback::RemoveConfigChangedCallback(m_registered_config_callback_id);
   InjectExternalCPUCore(nullptr);
   m_system.GetJitInterface().Shutdown();
@@ -736,6 +742,12 @@ void CheckAndHandleBreakPointsFromJIT(PowerPCManager& power_pc, Memory::MemoryMa
   power_pc.CheckAndHandleBreakPoints();
 }
 
+void PowerPCManager::InitUDPQueue()
+{
+  // this needs to be called exactly once
+  m_udp_queue.Reset("Seq UDP Queue", [](const std::function<void()>& func) { func(); });
+}
+
 void PowerPCManager::SendSeqUDPPacket(PowerPCManager& power_pc, Memory::MemoryManager& memory)
 {
   const u32 pc = m_ppc_state.pc;
@@ -769,11 +781,14 @@ void PowerPCManager::SendSeqUDPPacket(PowerPCManager& power_pc, Memory::MemoryMa
   std::string full_str =
       std::string(offset_str) + " " + opcode_str + " " + pc_str + " " + file_name_str;
 
-  sf::UdpSocket m_socket;
-  if (m_socket.send(full_str.data(), full_str.size(), sf::IpAddress("localhost"), 12198) !=
-      sf::Socket::Status::Done)
-  {
-    ERROR_LOG_FMT(CORE, "SEQ UDPClient send failed");
-  }
+  // Asynchronously send UDP packet
+  m_udp_queue.EmplaceItem([full_str = std::move(full_str)] {
+    sf::UdpSocket m_socket;
+    if (m_socket.send(full_str.data(), full_str.size(), sf::IpAddress("localhost"), 12198) !=
+        sf::Socket::Status::Done)
+    {
+      ERROR_LOG_FMT(CORE, "SEQ UDPClient send failed");
+    }
+  });
 }
 }  // namespace PowerPC

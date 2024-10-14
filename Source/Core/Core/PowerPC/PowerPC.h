@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "Common/CommonTypes.h"
+#include "Common/WorkQueueThread.h"
 
 #include "Core/CPUThreadConfigCallback.h"
 #include "Core/Debugger/BranchWatch.h"
@@ -330,6 +331,9 @@ private:
   CoreTiming::EventType* m_invalidate_cache_thread_safe = nullptr;
 
   Core::System& m_system;
+
+  Common::WorkQueueThread<std::function<void()>> m_udp_queue;
+  void InitUDPQueue();
 };
 
 void UpdatePerformanceMonitor(u32 cycles, u32 num_load_stores, u32 num_fp_inst,
