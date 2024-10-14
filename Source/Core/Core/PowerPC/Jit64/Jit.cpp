@@ -1031,9 +1031,6 @@ bool Jit64::DoJit(u32 em_address, JitBlock* b, u32 nextPC)
     }
     else
     {
-      // TODO: This is problematic because it is currently called at the start of seq_parse/SEQ_Exec.
-      // The JIT will run at the start of the method and this specific line of code will be hit once for each
-      // opcode in the method.
       auto& cpu = m_system.GetCPU();
       auto& power_pc = m_system.GetPowerPC();
       auto& memory = m_system.GetMemory();
@@ -1053,6 +1050,7 @@ bool Jit64::DoJit(u32 em_address, JitBlock* b, u32 nextPC)
         case 0x800c8e30:
         case 0x800c8ef8:
         case 0x80106f10:
+          // Enable SEQ breakpoints for known games based on GNT4
           isSeqBreakpoint = true;
           break;
         }
@@ -1065,7 +1063,6 @@ bool Jit64::DoJit(u32 em_address, JitBlock* b, u32 nextPC)
 
         MOV(32, PPCSTATE(pc), Imm32(op.address));
         ABI_PushRegistersAndAdjustStack({}, 0);
-        // TODO: We likely want our new logic to occur in the below callback since it will be called for this
         ABI_CallFunctionPP(PowerPC::CheckAndHandleBreakPointsFromJIT, &power_pc, &memory);
         ABI_PopRegistersAndAdjustStack({}, 0);
         MOV(64, R(RSCRATCH), ImmPtr(cpu.GetStatePtr()));
