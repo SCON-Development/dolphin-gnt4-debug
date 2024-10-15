@@ -150,6 +150,34 @@ void BreakPoints::Add(u32 address, bool break_on_hit, bool log_on_hit,
   m_system.GetJitInterface().InvalidateICache(address, 4, true);
 }
 
+void BreakPoints::Add(u32 offset, const std::string file, std::optional<Expression> condition)
+{
+  // Check for existing breakpoint, and overwrite with new info.
+  // This is assuming we usually want the new breakpoint over an old one.
+  auto iter = std::find_if(m_breakpoints.begin(), m_breakpoints.end(),
+                           [offset, file](const auto& bp) { return (bp.address == offset) && (bp.file == file) ; });
+
+  TBreakPoint bp;  // breakpoint settings
+  bp.is_enabled = true;
+  bp.break_on_hit = true;
+  bp.log_on_hit = true;
+  bp.address = offset;
+  bp.condition = std::move(condition);
+
+  if (iter != m_breakpoints.end())  // We found an existing breakpoint
+  {
+    bp.is_enabled = iter->is_enabled;
+    *iter = std::move(bp);
+  }
+  else
+  {
+    m_breakpoints.emplace_back(std::move(bp));
+  }
+
+  // I don't think this is needed since the JIT does not operate on SEQ code in memory
+  //m_system.GetJitInterface().InvalidateICache(address, 4, true);
+}
+
 void BreakPoints::SetTemporary(u32 address)
 {
   TBreakPoint bp;  // breakpoint settings

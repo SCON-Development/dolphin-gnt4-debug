@@ -26,6 +26,7 @@ public:
   {
     New,
     EditBreakPoint,
+    EditSeqBreakPoint,
     EditMemCheck
   };
 
@@ -47,6 +48,12 @@ private:
   QRadioButton* m_instruction_bp;
   QGroupBox* m_instruction_box;
   QLineEdit* m_instruction_address;
+
+  // SEQ BPs
+  QRadioButton* m_seq_bp;
+  QGroupBox* m_seq_box;
+  QLineEdit* m_seq_file;
+  QLineEdit* m_seq_offset;
 
   // Memory BPs
   QRadioButton* m_memory_bp;

@@ -616,6 +616,15 @@ void BreakpointWidget::AddBP(u32 addr, bool break_on_hit, bool log_on_hit, const
   emit Host::GetInstance()->PPCBreakpointsChanged();
 }
 
+void BreakpointWidget::AddSeqBP(u32 addr, const std::string file, const QString& condition)
+{
+  m_system.GetPowerPC().GetBreakPoints().Add(
+      addr, file,
+      !condition.isEmpty() ? Expression::TryParse(condition.toUtf8().constData()) : std::nullopt);
+
+  emit Host::GetInstance()->PPCBreakpointsChanged();
+}
+
 void BreakpointWidget::EditBreakpoint(u32 address, int edit, std::optional<QString> string)
 {
   TBreakPoint bp;
