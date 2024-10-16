@@ -153,7 +153,7 @@ private:
 
       // Count how many chunks we can send, maximum of 100.
       // The max datagram size for UDP is 65507 bytes, so we must not pass that.
-      size_t chunk_count = 100;
+      size_t chunk_count = 1000;
       if (m_items.size() < chunk_count)
       {
         chunk_count = m_items.size();
@@ -170,18 +170,23 @@ private:
           full_str += item;
         }
 
+        // Unlock before we send the packet so that the CPU thread can add more chunks to be processed
+        lg.unlock();
+
         // Send UDP data of multiple chunks
-        [full_str=full_str]()
-          {
-            sf::UdpSocket m_socket;
-            if (m_socket.send(full_str.data(), full_str.size(), sf::IpAddress("localhost"), 12198) != sf::Socket::Status::Done)
-            {
-              printf("SEQ UDPClient send failed");
-            }
-        }();
+        sf::UdpSocket m_socket;
+        if (m_socket.send(full_str.data(), full_str.size(), sf::IpAddress("localhost"), 12198) !=
+            sf::Socket::Status::Done)
+        {
+          printf("SEQ UDPClient send failed");
+        }
+      }
+      else
+      {
+        // No chunks to process, unlock mutex
+        lg.unlock();
       }
 
-      lg.unlock();
     }
   }
 
