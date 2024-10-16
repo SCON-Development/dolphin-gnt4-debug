@@ -151,7 +151,7 @@ private:
             lg, [&] { return !m_items.empty() || m_shutdown || m_cancelling.load(); });
       }
 
-      // Count how many chunks we can send, maximum of 100.
+      // Count how many chunks we can send, maximum of 1000.
       // The max datagram size for UDP is 65507 bytes, so we must not pass that.
       size_t chunk_count = 1000;
       if (m_items.size() < chunk_count)
