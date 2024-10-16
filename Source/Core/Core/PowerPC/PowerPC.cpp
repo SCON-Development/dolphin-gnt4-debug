@@ -16,7 +16,7 @@
 #include "Common/FPURoundMode.h"
 #include "Common/FloatUtils.h"
 #include "Common/Logging/Log.h"
-#include "Common/WorkQueueThread.h"
+#include "Common/SeqQueueThread.h"
 
 #include "Core/CPUThreadConfigCallback.h"
 #include "Core/Config/MainSettings.h"
@@ -34,8 +34,6 @@
 #include "Core/PowerPC/PPCSymbolDB.h"
 #include "Core/System.h"
 #include <Core/HW/Memmap.h>
-
-#include <SFML/Network/UdpSocket.hpp>
 
 namespace PowerPC
 {
@@ -745,7 +743,7 @@ void CheckAndHandleBreakPointsFromJIT(PowerPCManager& power_pc, Memory::MemoryMa
 void PowerPCManager::InitUDPQueue()
 {
   // this needs to be called exactly once
-  m_udp_queue.Reset("Seq UDP Queue", [](const std::function<void()>& func) { func(); });
+  m_udp_queue.Reset("Seq UDP Queue");
 }
 
 void PowerPCManager::SendSeqUDPPacket(PowerPCManager& power_pc, Memory::MemoryManager& memory)
@@ -778,17 +776,9 @@ void PowerPCManager::SendSeqUDPPacket(PowerPCManager& power_pc, Memory::MemoryMa
   char pc_str[9];
   snprintf(pc_str, 9, "%08x", pc);
 
-  std::string full_str =
-      std::string(offset_str) + " " + opcode_str + " " + pc_str + " " + file_name_str;
+  std::string full_str = std::string(offset_str) + " " + opcode_str + " " + pc_str + " " + file_name_str;
 
   // Asynchronously send UDP packet
-  m_udp_queue.EmplaceItem([full_str = std::move(full_str)] {
-    sf::UdpSocket m_socket;
-    if (m_socket.send(full_str.data(), full_str.size(), sf::IpAddress("localhost"), 12198) !=
-        sf::Socket::Status::Done)
-    {
-      ERROR_LOG_FMT(CORE, "SEQ UDPClient send failed");
-    }
-  });
+  m_udp_queue.Push(full_str);
 }
 }  // namespace PowerPC

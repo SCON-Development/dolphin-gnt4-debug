@@ -11,7 +11,7 @@
 #include <vector>
 
 #include "Common/CommonTypes.h"
-#include "Common/WorkQueueThread.h"
+#include "Common/SeqQueueThread.h"
 
 #include "Core/CPUThreadConfigCallback.h"
 #include "Core/Debugger/BranchWatch.h"
@@ -332,7 +332,7 @@ private:
 
   Core::System& m_system;
 
-  Common::WorkQueueThread<std::function<void()>> m_udp_queue;
+  Common::SeqQueueThread<std::string> m_udp_queue;
   void InitUDPQueue();
 };
 
