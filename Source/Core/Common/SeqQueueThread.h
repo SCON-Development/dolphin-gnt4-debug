@@ -161,17 +161,24 @@ private:
 
       if (chunk_count > 0)
       {
-        // Create single data stream of up to 100 chunks
-        std::string full_str;
+        // Read up to 100 chunks
+        std::vector<std::string> chunks(chunk_count);
         for (int i = 0; i < chunk_count; i++)
         {
           T item{std::move(m_items.front())};
           m_items.pop();
-          full_str += item;
+          chunks[i] = item;
         }
 
-        // Unlock before we send the packet so that the CPU thread can add more chunks to be processed
+        // Now we can unlock the mutex and let other chunks accumulate again
         lg.unlock();
+
+        // Create single data stream of the chunk(s)
+        std::string full_str;
+        for (int i = 0; i < chunk_count; i++)
+        {
+          full_str += chunks[i];
+        }
 
         // Send UDP data of multiple chunks
         sf::UdpSocket m_socket;
