@@ -162,7 +162,7 @@ private:
       if (chunk_count > 0)
       {
         // Read up to 100 chunks
-        std::vector<std::string> chunks(chunk_count);
+        std::vector<std::vector<char>> chunks(chunk_count);
         for (int i = 0; i < chunk_count; i++)
         {
           T item{std::move(m_items.front())};
@@ -174,15 +174,16 @@ private:
         lg.unlock();
 
         // Create single data stream of the chunk(s)
-        std::string full_str;
+        std::vector<char> full_bytes;
         for (int i = 0; i < chunk_count; i++)
         {
-          full_str += chunks[i];
+          full_bytes.insert(full_bytes.end(), chunks[i].begin(), chunks[i].end());
         }
 
         // Send UDP data of multiple chunks
         sf::UdpSocket m_socket;
-        if (m_socket.send(full_str.data(), full_str.size(), sf::IpAddress("localhost"), 12198) !=
+        if (m_socket.send(full_bytes.data(), full_bytes.size(), sf::IpAddress("localhost"),
+                          12198) !=
             sf::Socket::Status::Done)
         {
           printf("SEQ UDPClient send failed");

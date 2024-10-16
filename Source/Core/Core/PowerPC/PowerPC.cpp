@@ -760,8 +760,6 @@ void PowerPCManager::SendSeqUDPPacket(PowerPCManager& power_pc, Memory::MemoryMa
 
   // Calculate the offset in the seq file
   const u32 seq_offset = seq_pc - seq_start;
-  char offset_str[9];
-  snprintf(offset_str, 9, "%08x", seq_offset);
 
   // Get the file name, which can be found at seq_p[8][5]
   const u32 file_entry = memory.Read_U32(seq_p + 0x20);
@@ -769,16 +767,24 @@ void PowerPCManager::SendSeqUDPPacket(PowerPCManager& power_pc, Memory::MemoryMa
 
   // Get the current opcode being executed
   const u32 opcode = memory.Read_U32(seq_pc);
-  char opcode_str[9];
-  snprintf(opcode_str, 9, "%08x", opcode);
 
-  // Get the program counter
-  char pc_str[9];
-  snprintf(pc_str, 9, "%08x", pc);
-
-  std::string full_str = std::string(offset_str) + " " + opcode_str + " " + pc_str + " " + file_name_str;
+  std::vector<char> bytes;
+  bytes.push_back(static_cast<uint8_t>((seq_offset >> 24) & 0xFF));
+  bytes.push_back(static_cast<uint8_t>((seq_offset >> 16) & 0xFF));
+  bytes.push_back(static_cast<uint8_t>((seq_offset >> 8) & 0xFF));
+  bytes.push_back(static_cast<uint8_t>(seq_offset & 0xFF));
+  bytes.push_back(static_cast<uint8_t>((opcode >> 24) & 0xFF));
+  bytes.push_back(static_cast<uint8_t>((opcode >> 16) & 0xFF));
+  bytes.push_back(static_cast<uint8_t>((opcode >> 8) & 0xFF));
+  bytes.push_back(static_cast<uint8_t>(opcode & 0xFF));
+  bytes.push_back(static_cast<uint8_t>((pc >> 24) & 0xFF));
+  bytes.push_back(static_cast<uint8_t>((pc >> 16) & 0xFF));
+  bytes.push_back(static_cast<uint8_t>((pc >> 8) & 0xFF));
+  bytes.push_back(static_cast<uint8_t>(pc & 0xFF));
+  bytes.insert(bytes.end(), file_name_str.begin(), file_name_str.end());
+  bytes.push_back(0); // null terminator
 
   // Asynchronously send UDP packet
-  m_udp_queue.Push(full_str);
+  m_udp_queue.Push(bytes);
 }
 }  // namespace PowerPC

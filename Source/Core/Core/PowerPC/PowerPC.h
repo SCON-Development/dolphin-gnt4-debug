@@ -332,7 +332,7 @@ private:
 
   Core::System& m_system;
 
-  Common::SeqQueueThread<std::string> m_udp_queue;
+  Common::SeqQueueThread<std::vector<char>> m_udp_queue;
   void InitUDPQueue();
 };
 
