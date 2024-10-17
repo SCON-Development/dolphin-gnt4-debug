@@ -334,6 +334,7 @@ private:
 
   Core::System& m_system;
 
+  bool recent_seq_bp = false;
   Common::SeqQueueThread<std::vector<char>> m_udp_queue;
   void InitUDPQueue();
 };

@@ -805,11 +805,17 @@ bool PowerPCManager::CheckSeqExecution(PowerPCManager& power_pc, Memory::MemoryM
   m_udp_queue.Push(bytes);
 
   // Check for SEQ breakpoints
-  if (CheckSeqBreakPoints(file_name_str, seq_offset))
+  if (recent_seq_bp)
+  {
+    // Needed to prevent infinite breaking on the same SEQ breakpoint
+    recent_seq_bp = false;
+  }
+  else if (CheckSeqBreakPoints(file_name_str, seq_offset))
   {
     m_system.GetCPU().Break();
     if (GDBStub::IsActive())
       GDBStub::TakeControl();
+    recent_seq_bp = true;
     return true;
   }
   return false;
