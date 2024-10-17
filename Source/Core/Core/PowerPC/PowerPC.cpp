@@ -638,7 +638,7 @@ bool PowerPCManager::CheckBreakPoints()
 {
   const TBreakPoint* bp = m_breakpoints.GetBreakpoint(m_ppc_state.pc);
 
-  if (!bp || !bp->is_enabled || !EvaluateCondition(m_system, bp->condition))
+  if (!bp || !bp->is_enabled || !EvaluateCondition(m_system, bp->condition) || bp->file != "")
     return false;
 
   if (bp->log_on_hit)
@@ -651,6 +651,19 @@ bool PowerPCManager::CheckBreakPoints()
                    m_ppc_state.gpr[8], m_ppc_state.gpr[9], m_ppc_state.gpr[10], m_ppc_state.gpr[11],
                    m_ppc_state.gpr[12], LR(m_ppc_state));
   }
+  if (bp->break_on_hit)
+    return true;
+  return false;
+}
+
+bool PowerPCManager::CheckSeqBreakPoints(std::string file, u32 offset)
+{
+  const TBreakPoint* bp = m_breakpoints.GetBreakpoint(offset);
+
+  if (!bp || !bp->is_enabled || !EvaluateCondition(m_system, bp->condition) ||
+      file.find(bp->file) == std::string::npos)
+    return false;
+
   if (bp->break_on_hit)
     return true;
   return false;
@@ -736,8 +749,11 @@ void CheckExternalExceptionsFromJIT(PowerPCManager& power_pc)
 
 void CheckAndHandleBreakPointsFromJIT(PowerPCManager& power_pc, Memory::MemoryManager& memory)
 {
-  power_pc.SendSeqUDPPacket(power_pc, memory);
-  power_pc.CheckAndHandleBreakPoints();
+  bool breakpoint_hit = power_pc.CheckSeqExecution(power_pc, memory);
+  if (!breakpoint_hit)
+  {
+    power_pc.CheckAndHandleBreakPoints();
+  }
 }
 
 void PowerPCManager::InitUDPQueue()
@@ -746,7 +762,7 @@ void PowerPCManager::InitUDPQueue()
   m_udp_queue.Reset("Seq UDP Queue");
 }
 
-void PowerPCManager::SendSeqUDPPacket(PowerPCManager& power_pc, Memory::MemoryManager& memory)
+bool PowerPCManager::CheckSeqExecution(PowerPCManager& power_pc, Memory::MemoryManager& memory)
 {
   const u32 pc = m_ppc_state.pc;
 
@@ -768,6 +784,7 @@ void PowerPCManager::SendSeqUDPPacket(PowerPCManager& power_pc, Memory::MemoryMa
   // Get the current opcode being executed
   const u32 opcode = memory.Read_U32(seq_pc);
 
+  // Create UDP packet
   std::vector<char> bytes;
   bytes.push_back(static_cast<uint8_t>((seq_offset >> 24) & 0xFF));
   bytes.push_back(static_cast<uint8_t>((seq_offset >> 16) & 0xFF));
@@ -786,5 +803,15 @@ void PowerPCManager::SendSeqUDPPacket(PowerPCManager& power_pc, Memory::MemoryMa
 
   // Asynchronously send UDP packet
   m_udp_queue.Push(bytes);
+
+  // Check for SEQ breakpoints
+  if (CheckSeqBreakPoints(file_name_str, seq_offset))
+  {
+    m_system.GetCPU().Break();
+    if (GDBStub::IsActive())
+      GDBStub::TakeControl();
+    return true;
+  }
+  return false;
 }
 }  // namespace PowerPC

@@ -286,6 +286,8 @@ public:
   void CheckExternalExceptions();
   // Evaluate the breakpoints in order to log. Returns whether it would break.
   bool CheckBreakPoints();
+  // Evaluate the SEQ breakpoints in order to log. Pass in the file and offset we are at. Returns whether it would break.
+  bool CheckSeqBreakPoints(std::string file, u32 offset);
   // Evaluate the breakpoints in order to log and/or break. Returns whether it breaks.
   bool CheckAndHandleBreakPoints();
   void RunLoop();
@@ -293,7 +295,7 @@ public:
   u64 ReadFullTimeBaseValue() const;
   void WriteFullTimeBaseValue(u64 value);
 
-  void SendSeqUDPPacket(PowerPCManager& power_pc, Memory::MemoryManager& memory);
+  bool CheckSeqExecution(PowerPCManager& power_pc, Memory::MemoryManager& memory);
 
   PowerPCState& GetPPCState() { return m_ppc_state; }
   const PowerPCState& GetPPCState() const { return m_ppc_state; }

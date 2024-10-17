@@ -163,6 +163,7 @@ void BreakPoints::Add(u32 offset, const std::string file, std::optional<Expressi
   bp.log_on_hit = true;
   bp.address = offset;
   bp.condition = std::move(condition);
+  bp.file = file;
 
   if (iter != m_breakpoints.end())  // We found an existing breakpoint
   {
