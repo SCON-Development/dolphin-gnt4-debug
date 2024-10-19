@@ -19,7 +19,7 @@ class System;
 struct TBreakPoint
 {
   u32 address = 0;
-  std::string file = "UNSET";
+  std::string file = "main.dol";
   bool is_enabled = false;
   bool log_on_hit = false;
   bool break_on_hit = false;

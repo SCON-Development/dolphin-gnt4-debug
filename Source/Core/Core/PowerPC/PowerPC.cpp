@@ -638,7 +638,7 @@ bool PowerPCManager::CheckBreakPoints()
 {
   const TBreakPoint* bp = m_breakpoints.GetBreakpoint(m_ppc_state.pc);
 
-  if (!bp || !bp->is_enabled || !EvaluateCondition(m_system, bp->condition) || bp->file != "")
+  if (!bp || !bp->is_enabled || !EvaluateCondition(m_system, bp->condition) || bp->file == "main.dol")
     return false;
 
   if (bp->log_on_hit)
