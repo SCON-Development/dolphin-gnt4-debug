@@ -20,6 +20,7 @@
 
 #include "Core/CPUThreadConfigCallback.h"
 #include "Core/Config/MainSettings.h"
+#include "Core/ConfigManager.h"
 #include "Core/Core.h"
 #include "Core/CoreTiming.h"
 #include "Core/HW/CPU.h"
@@ -638,7 +639,7 @@ bool PowerPCManager::CheckBreakPoints()
 {
   const TBreakPoint* bp = m_breakpoints.GetBreakpoint(m_ppc_state.pc);
 
-  if (!bp || !bp->is_enabled || !EvaluateCondition(m_system, bp->condition) || bp->file == "main.dol")
+  if (!bp || !bp->is_enabled || !EvaluateCondition(m_system, bp->condition) || bp->file != "main.dol")
     return false;
 
   if (bp->log_on_hit)
@@ -765,6 +766,10 @@ void PowerPCManager::InitUDPQueue()
 bool PowerPCManager::CheckSeqExecution(PowerPCManager& power_pc, Memory::MemoryManager& memory)
 {
   const u32 pc = m_ppc_state.pc;
+  if (!IsSeqBreakpoint(pc))
+  {
+    return false; // not a seq breakpoint, return and check normal breakpoints
+  }
 
   // The start of the seq file is at*(int*)(seq_p[5] + 0x5c)
   const u32 seq_p = m_ppc_state.gpr[3];
@@ -817,6 +822,30 @@ bool PowerPCManager::CheckSeqExecution(PowerPCManager& power_pc, Memory::MemoryM
       GDBStub::TakeControl();
     recent_seq_bp = true;
     return true;
+  }
+  return false;
+}
+
+bool PowerPCManager::IsSeqBreakpoint(u32 address)
+{
+  auto& game_id = SConfig::GetInstance().GetGameID();
+  auto& gnt4 = "G4NJDA";
+  auto& scon4 = "SG4JDA";
+  auto& qole = "G4QJDA";
+  if ((game_id == gnt4) || (game_id == scon4) || (game_id == qole))
+  {
+    switch (address)
+    {
+    case 0x800c903c:
+    case 0x800c9094:
+    case 0x800c9138:
+    case 0x800c91a0:
+    case 0x800c8e30:
+    case 0x800c8ef8:
+    case 0x80106f10:
+      // Enable SEQ breakpoints for known games based on GNT4
+      return true;
+    }
   }
   return false;
 }

@@ -296,6 +296,7 @@ public:
   void WriteFullTimeBaseValue(u64 value);
 
   bool CheckSeqExecution(PowerPCManager& power_pc, Memory::MemoryManager& memory);
+  bool IsSeqBreakpoint(u32 address);
 
   PowerPCState& GetPPCState() { return m_ppc_state; }
   const PowerPCState& GetPPCState() const { return m_ppc_state; }
