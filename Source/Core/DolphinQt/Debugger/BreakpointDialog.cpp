@@ -34,14 +34,31 @@ BreakpointDialog::BreakpointDialog(BreakpointWidget* parent)
 }
 
 BreakpointDialog::BreakpointDialog(BreakpointWidget* parent, const TBreakPoint* breakpoint)
-    : QDialog(parent), m_parent(parent), m_open_mode(OpenMode::EditBreakPoint)
+    : QDialog(parent), m_parent(parent)
 {
+  if (breakpoint->file == "main.dol")
+  {
+    m_open_mode = OpenMode::EditBreakPoint;
+  }
+  else
+  {
+    m_open_mode = OpenMode::EditSeqBreakPoint;
+  }
   setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
   setWindowTitle(tr("Edit Breakpoint"));
   CreateWidgets();
   ConnectWidgets();
 
-  m_instruction_address->setText(QString::number(breakpoint->address, 16));
+  if (breakpoint->file == "main.dol")
+  {
+    m_instruction_address->setText(QString::number(breakpoint->address, 16));
+  }
+  else
+  {
+    m_seq_file->setText(QString::fromStdString(breakpoint->file));
+    m_seq_offset->setText(QString::number(breakpoint->address, 16));
+  }
+
   if (breakpoint->condition)
     m_conditional->setText(QString::fromStdString(breakpoint->condition->GetText()));
 
@@ -124,10 +141,10 @@ void BreakpointDialog::CreateWidgets()
 
   auto* seq_data_layout = new QGridLayout;
   m_seq_box->setLayout(seq_data_layout);
-  seq_data_layout->addWidget(new QLabel(tr("File:")), 1, 0, 1, 1);
-  seq_data_layout->addWidget(m_seq_file, 1, 1, 1, 1);
-  seq_data_layout->addWidget(new QLabel(tr("Offset:")), 0, 0, 1, 1);
-  seq_data_layout->addWidget(m_seq_offset, 0, 1, 1, 1);
+  seq_data_layout->addWidget(new QLabel(tr("File:")), 0, 0, 1, 1);
+  seq_data_layout->addWidget(m_seq_file, 0, 1, 1, 1);
+  seq_data_layout->addWidget(new QLabel(tr("Offset:")), 1, 0, 1, 1);
+  seq_data_layout->addWidget(m_seq_offset, 1, 1, 1, 1);
 
   seq_layout->addWidget(m_seq_bp, 0, 0, 1, 1);
   seq_layout->addWidget(m_seq_box, 1, 0, 1, 2);
@@ -225,12 +242,22 @@ void BreakpointDialog::CreateWidgets()
     break;
   case OpenMode::EditBreakPoint:
     memory_widget->setVisible(false);
+    seq_widget->setVisible(false);
     m_instruction_bp->setChecked(true);
     m_instruction_address->setEnabled(false);
     m_instruction_address->setFocus();
     break;
+  case OpenMode::EditSeqBreakPoint:
+    instruction_widget->setVisible(false);
+    memory_widget->setVisible(false);
+    m_seq_file->setEnabled(false);
+    m_seq_offset->setEnabled(false);
+    m_seq_bp->setChecked(true);
+    m_seq_file->setFocus();
+    break;
   case OpenMode::EditMemCheck:
     instruction_widget->setVisible(false);
+    seq_widget->setVisible(false);
     m_memory_bp->setChecked(true);
     m_memory_address_from->setEnabled(false);
     m_memory_address_to->setFocus();
