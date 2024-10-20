@@ -129,7 +129,7 @@ void JitBase::RefreshConfig()
     m_low_dcbz_hack = false;
   }
 
-  analyzer.SetDebuggingEnabled(m_enable_debugging);
+  analyzer.SetDebuggingEnabled(true); // always enabled for this Dolphin build
   analyzer.SetBranchFollowingEnabled(m_enable_branch_following);
   analyzer.SetFloatExceptionsEnabled(m_enable_float_exceptions);
   analyzer.SetDivByZeroExceptionsEnabled(m_enable_div_by_zero_exceptions);
