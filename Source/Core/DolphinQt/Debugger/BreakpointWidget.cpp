@@ -49,11 +49,11 @@ enum TableColumns
   SYMBOL_COLUMN = 2,
   ADDRESS_COLUMN = 3,
   END_ADDRESS_COLUMN = 4,
-  BREAK_COLUMN = 5,
-  LOG_COLUMN = 6,
-  READ_COLUMN = 7,
-  WRITE_COLUMN = 8,
-  FILE_COLUMN = 9,
+  FILE_COLUMN = 5,
+  BREAK_COLUMN = 6,
+  LOG_COLUMN = 7,
+  READ_COLUMN = 8,
+  WRITE_COLUMN = 9,
   CONDITION_COLUMN = 10,
 };
 }  // namespace
@@ -272,8 +272,8 @@ void BreakpointWidget::Update()
 
   m_table->clear();
   m_table->setHorizontalHeaderLabels({tr("Active"), tr("Type"), tr("Function"), tr("Address"),
-                                      tr("End Addr"), tr("Break"), tr("Log"), tr("Read"),
-                                      tr("Write"), tr("File"), tr("Condition")});
+                                      tr("End Addr"), tr("File"), tr("Break"), tr("Log"), tr("Read"),
+                                      tr("Write"), tr("Condition")});
   m_table->horizontalHeader()->setStretchLastSection(true);
 
   // Get row height for icons
@@ -341,9 +341,9 @@ void BreakpointWidget::Update()
     m_table->setItem(i, LOG_COLUMN, bp.log_on_hit ? icon_item.clone() : empty_item.clone());
 
     m_table->setItem(i, END_ADDRESS_COLUMN, disabled_item.clone());
+    m_table->setItem(i, FILE_COLUMN, create_item(QString::fromStdString(bp.file)));
     m_table->setItem(i, READ_COLUMN, disabled_item.clone());
     m_table->setItem(i, WRITE_COLUMN, disabled_item.clone());
-    m_table->setItem(i, FILE_COLUMN, create_item(QString::fromStdString(bp.file)));
 
     m_table->setItem(
         i, CONDITION_COLUMN,
