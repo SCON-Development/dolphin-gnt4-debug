@@ -1033,15 +1033,17 @@ bool Jit64::DoJit(u32 em_address, JitBlock* b, u32 nextPC)
     {
       auto& cpu = m_system.GetCPU();
       auto& power_pc = m_system.GetPowerPC();
-      if (IsDebuggingEnabled() && power_pc.GetBreakPoints().IsAddressBreakPoint(op.address) &&
-          !cpu.IsStepping())
+      auto& memory = m_system.GetMemory();
+      bool isSeqBreakpoint = power_pc.IsSeqBreakpoint(op.address);
+      if (isSeqBreakpoint || (power_pc.GetBreakPoints().IsAddressBreakPoint(op.address) &&
+          !cpu.IsStepping()))
       {
         gpr.Flush();
         fpr.Flush();
 
         MOV(32, PPCSTATE(pc), Imm32(op.address));
         ABI_PushRegistersAndAdjustStack({}, 0);
-        ABI_CallFunctionP(PowerPC::CheckAndHandleBreakPointsFromJIT, &power_pc);
+        ABI_CallFunctionPP(PowerPC::CheckAndHandleBreakPointsFromJIT, &power_pc, &memory);
         ABI_PopRegistersAndAdjustStack({}, 0);
         MOV(64, R(RSCRATCH), ImmPtr(cpu.GetStatePtr()));
         CMP(32, MatR(RSCRATCH), Imm32(Common::ToUnderlying(CPU::State::Running)));
