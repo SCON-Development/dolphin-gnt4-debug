@@ -11,15 +11,18 @@
 #include <vector>
 
 #include "Common/CommonTypes.h"
+#include "Common/SeqQueueThread.h"
 
 #include "Core/CPUThreadConfigCallback.h"
 #include "Core/Debugger/BranchWatch.h"
 #include "Core/Debugger/PPCDebugInterface.h"
+#include "Core/HW/Memmap.h"
 #include "Core/PowerPC/BreakPoints.h"
 #include "Core/PowerPC/ConditionRegister.h"
 #include "Core/PowerPC/Gekko.h"
 #include "Core/PowerPC/PPCCache.h"
 #include "Core/PowerPC/PPCSymbolDB.h"
+#include <Core/HW/Memmap.h>
 
 class CPUCoreBase;
 class PointerWrap;
@@ -283,12 +286,17 @@ public:
   void CheckExternalExceptions();
   // Evaluate the breakpoints in order to log. Returns whether it would break.
   bool CheckBreakPoints();
+  // Evaluate the SEQ breakpoints in order to log. Pass in the file and offset we are at. Returns whether it would break.
+  bool CheckSeqBreakPoints(std::string file, u32 offset);
   // Evaluate the breakpoints in order to log and/or break. Returns whether it breaks.
   bool CheckAndHandleBreakPoints();
   void RunLoop();
 
   u64 ReadFullTimeBaseValue() const;
   void WriteFullTimeBaseValue(u64 value);
+
+  bool CheckSeqExecution(PowerPCManager& power_pc, Memory::MemoryManager& memory);
+  bool IsSeqBreakpoint(u32 address);
 
   PowerPCState& GetPPCState() { return m_ppc_state; }
   const PowerPCState& GetPPCState() const { return m_ppc_state; }
@@ -326,6 +334,10 @@ private:
   CoreTiming::EventType* m_invalidate_cache_thread_safe = nullptr;
 
   Core::System& m_system;
+
+  bool recent_seq_bp = false;
+  Common::SeqQueueThread<std::vector<char>> m_udp_queue;
+  void InitUDPQueue();
 };
 
 void UpdatePerformanceMonitor(u32 cycles, u32 num_load_stores, u32 num_fp_inst,
@@ -333,7 +345,7 @@ void UpdatePerformanceMonitor(u32 cycles, u32 num_load_stores, u32 num_fp_inst,
 
 void CheckExceptionsFromJIT(PowerPCManager& power_pc);
 void CheckExternalExceptionsFromJIT(PowerPCManager& power_pc);
-void CheckAndHandleBreakPointsFromJIT(PowerPCManager& power_pc);
+void CheckAndHandleBreakPointsFromJIT(PowerPCManager& power_pc, Memory::MemoryManager& memory);
 
 // Easy register access macros.
 #define HID0(ppc_state) ((UReg_HID0&)(ppc_state).spr[SPR_HID0])

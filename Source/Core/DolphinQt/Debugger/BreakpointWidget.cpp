@@ -49,11 +49,12 @@ enum TableColumns
   SYMBOL_COLUMN = 2,
   ADDRESS_COLUMN = 3,
   END_ADDRESS_COLUMN = 4,
-  BREAK_COLUMN = 5,
-  LOG_COLUMN = 6,
-  READ_COLUMN = 7,
-  WRITE_COLUMN = 8,
-  CONDITION_COLUMN = 9,
+  FILE_COLUMN = 5,
+  BREAK_COLUMN = 6,
+  LOG_COLUMN = 7,
+  READ_COLUMN = 8,
+  WRITE_COLUMN = 9,
+  CONDITION_COLUMN = 10,
 };
 }  // namespace
 
@@ -155,7 +156,7 @@ void BreakpointWidget::CreateWidgets()
   m_table->setItemDelegate(new CustomDelegate(this));
   m_table->setTabKeyNavigation(false);
   m_table->setContentsMargins(0, 0, 0, 0);
-  m_table->setColumnCount(10);
+  m_table->setColumnCount(11);
   m_table->setSelectionMode(QAbstractItemView::NoSelection);
   m_table->verticalHeader()->hide();
 
@@ -271,7 +272,7 @@ void BreakpointWidget::Update()
 
   m_table->clear();
   m_table->setHorizontalHeaderLabels({tr("Active"), tr("Type"), tr("Function"), tr("Address"),
-                                      tr("End Addr"), tr("Break"), tr("Log"), tr("Read"),
+                                      tr("End Addr"), tr("File"), tr("Break"), tr("Log"), tr("Read"),
                                       tr("Write"), tr("Condition")});
   m_table->horizontalHeader()->setStretchLastSection(true);
 
@@ -340,6 +341,7 @@ void BreakpointWidget::Update()
     m_table->setItem(i, LOG_COLUMN, bp.log_on_hit ? icon_item.clone() : empty_item.clone());
 
     m_table->setItem(i, END_ADDRESS_COLUMN, disabled_item.clone());
+    m_table->setItem(i, FILE_COLUMN, create_item(QString::fromStdString(bp.file)));
     m_table->setItem(i, READ_COLUMN, disabled_item.clone());
     m_table->setItem(i, WRITE_COLUMN, disabled_item.clone());
 
@@ -400,6 +402,7 @@ void BreakpointWidget::Update()
     m_table->setItem(i, READ_COLUMN, mbp.is_break_on_read ? icon_item.clone() : empty_item.clone());
     m_table->setItem(i, WRITE_COLUMN,
                      mbp.is_break_on_write ? icon_item.clone() : empty_item.clone());
+    m_table->setItem(i, FILE_COLUMN, create_item(QString()));
 
     m_table->setItem(
         i, CONDITION_COLUMN,
@@ -422,6 +425,7 @@ void BreakpointWidget::Update()
   m_table->resizeColumnToContents(LOG_COLUMN);
   m_table->resizeColumnToContents(READ_COLUMN);
   m_table->resizeColumnToContents(WRITE_COLUMN);
+  m_table->resizeColumnToContents(FILE_COLUMN);
 }
 
 void BreakpointWidget::OnClear()
@@ -611,6 +615,15 @@ void BreakpointWidget::AddBP(u32 addr, bool break_on_hit, bool log_on_hit, const
 {
   m_system.GetPowerPC().GetBreakPoints().Add(
       addr, break_on_hit, log_on_hit,
+      !condition.isEmpty() ? Expression::TryParse(condition.toUtf8().constData()) : std::nullopt);
+
+  emit Host::GetInstance()->PPCBreakpointsChanged();
+}
+
+void BreakpointWidget::AddSeqBP(u32 addr, const std::string file, const QString& condition)
+{
+  m_system.GetPowerPC().GetBreakPoints().Add(
+      addr, file,
       !condition.isEmpty() ? Expression::TryParse(condition.toUtf8().constData()) : std::nullopt);
 
   emit Host::GetInstance()->PPCBreakpointsChanged();

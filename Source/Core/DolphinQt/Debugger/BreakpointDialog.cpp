@@ -34,14 +34,31 @@ BreakpointDialog::BreakpointDialog(BreakpointWidget* parent)
 }
 
 BreakpointDialog::BreakpointDialog(BreakpointWidget* parent, const TBreakPoint* breakpoint)
-    : QDialog(parent), m_parent(parent), m_open_mode(OpenMode::EditBreakPoint)
+    : QDialog(parent), m_parent(parent)
 {
+  if (breakpoint->file == "main.dol")
+  {
+    m_open_mode = OpenMode::EditBreakPoint;
+  }
+  else
+  {
+    m_open_mode = OpenMode::EditSeqBreakPoint;
+  }
   setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
   setWindowTitle(tr("Edit Breakpoint"));
   CreateWidgets();
   ConnectWidgets();
 
-  m_instruction_address->setText(QString::number(breakpoint->address, 16));
+  if (breakpoint->file == "main.dol")
+  {
+    m_instruction_address->setText(QString::number(breakpoint->address, 16));
+  }
+  else
+  {
+    m_seq_file->setText(QString::fromStdString(breakpoint->file));
+    m_seq_offset->setText(QString::number(breakpoint->address, 16));
+  }
+
   if (breakpoint->condition)
     m_conditional->setText(QString::fromStdString(breakpoint->condition->GetText()));
 
@@ -111,6 +128,27 @@ void BreakpointDialog::CreateWidgets()
   instruction_layout->addWidget(m_instruction_bp, 0, 0, 1, 1);
   instruction_layout->addWidget(m_instruction_box, 1, 0, 1, 2);
   instruction_widget->setLayout(instruction_layout);
+
+  // SEQ BP
+  auto* seq_widget = new QWidget;
+  auto* seq_layout = new QGridLayout;
+
+  m_seq_bp = new QRadioButton(tr("SEQ Breakpoint"));
+  type_group->addButton(m_seq_bp);
+  m_seq_box = new QGroupBox;
+  m_seq_file = new QLineEdit;
+  m_seq_offset = new QLineEdit;
+
+  auto* seq_data_layout = new QGridLayout;
+  m_seq_box->setLayout(seq_data_layout);
+  seq_data_layout->addWidget(new QLabel(tr("File:")), 0, 0, 1, 1);
+  seq_data_layout->addWidget(m_seq_file, 0, 1, 1, 1);
+  seq_data_layout->addWidget(new QLabel(tr("Offset:")), 1, 0, 1, 1);
+  seq_data_layout->addWidget(m_seq_offset, 1, 1, 1, 1);
+
+  seq_layout->addWidget(m_seq_bp, 0, 0, 1, 1);
+  seq_layout->addWidget(m_seq_box, 1, 0, 1, 2);
+  seq_widget->setLayout(seq_layout);
 
   // Memory BP
   auto* memory_widget = new QWidget;
@@ -191,6 +229,7 @@ void BreakpointDialog::CreateWidgets()
 
   auto* layout = new QVBoxLayout;
   layout->addWidget(instruction_widget);
+  layout->addWidget(seq_widget);
   layout->addWidget(memory_widget);
   layout->addWidget(action_box);
   layout->addWidget(m_buttons);
@@ -203,12 +242,22 @@ void BreakpointDialog::CreateWidgets()
     break;
   case OpenMode::EditBreakPoint:
     memory_widget->setVisible(false);
+    seq_widget->setVisible(false);
     m_instruction_bp->setChecked(true);
     m_instruction_address->setEnabled(false);
     m_instruction_address->setFocus();
     break;
+  case OpenMode::EditSeqBreakPoint:
+    instruction_widget->setVisible(false);
+    memory_widget->setVisible(false);
+    m_seq_file->setEnabled(false);
+    m_seq_offset->setEnabled(false);
+    m_seq_bp->setChecked(true);
+    m_seq_file->setFocus();
+    break;
   case OpenMode::EditMemCheck:
     instruction_widget->setVisible(false);
+    seq_widget->setVisible(false);
     m_memory_bp->setChecked(true);
     m_memory_address_from->setEnabled(false);
     m_memory_address_to->setFocus();
@@ -236,6 +285,7 @@ void BreakpointDialog::ConnectWidgets()
 void BreakpointDialog::OnBPTypeChanged()
 {
   m_instruction_box->setEnabled(m_instruction_bp->isChecked());
+  m_seq_box->setEnabled(m_seq_bp->isChecked());
   m_memory_box->setEnabled(m_memory_bp->isChecked());
 }
 
@@ -257,6 +307,7 @@ void BreakpointDialog::accept()
   };
 
   bool instruction = m_instruction_bp->isChecked();
+  bool seq = m_seq_bp->isChecked();
   bool ranged = m_memory_use_range->isChecked();
 
   // Triggers
@@ -290,6 +341,19 @@ void BreakpointDialog::accept()
     }
 
     m_parent->AddBP(address, do_break, do_log, condition);
+  }
+  else if (seq)
+  {
+    u32 offset = m_seq_offset->text().toUInt(&good, 16);
+    QString file = m_seq_file->text();
+
+    if (!good)
+    {
+      invalid_input(tr("Offset"));
+      return;
+    }
+
+    m_parent->AddSeqBP(offset, file.toStdString(), condition);
   }
   else
   {

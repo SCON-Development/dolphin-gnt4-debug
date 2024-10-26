@@ -19,6 +19,7 @@ class System;
 struct TBreakPoint
 {
   u32 address = 0;
+  std::string file = "main.dol";
   bool is_enabled = false;
   bool log_on_hit = false;
   bool break_on_hit = false;
@@ -74,6 +75,7 @@ public:
 
   // Add BreakPoint. If one already exists on the same address, replace it.
   void Add(u32 address, bool break_on_hit, bool log_on_hit, std::optional<Expression> condition);
+  void Add(u32 address, const std::string file, std::optional<Expression> condition);
   void Add(u32 address);
   void Add(TBreakPoint bp);
   // Add temporary breakpoint (e.g., Step Over, Run to Here)

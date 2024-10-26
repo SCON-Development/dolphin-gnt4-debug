@@ -12,15 +12,19 @@
 #include "Common/Assert.h"
 #include "Common/ChunkFile.h"
 #include "Common/CommonTypes.h"
+#include "Common/Event.h"
 #include "Common/FPURoundMode.h"
 #include "Common/FloatUtils.h"
 #include "Common/Logging/Log.h"
+#include "Common/SeqQueueThread.h"
 
 #include "Core/CPUThreadConfigCallback.h"
 #include "Core/Config/MainSettings.h"
+#include "Core/ConfigManager.h"
 #include "Core/Core.h"
 #include "Core/CoreTiming.h"
 #include "Core/HW/CPU.h"
+#include "Core/HW/Memmap.h"
 #include "Core/HW/SystemTimers.h"
 #include "Core/Host.h"
 #include "Core/PowerPC/CPUCoreBase.h"
@@ -30,6 +34,7 @@
 #include "Core/PowerPC/MMU.h"
 #include "Core/PowerPC/PPCSymbolDB.h"
 #include "Core/System.h"
+#include <Core/HW/Memmap.h>
 
 namespace PowerPC
 {
@@ -63,6 +68,8 @@ PowerPCManager::PowerPCManager(Core::System& system)
     : m_breakpoints(system), m_memchecks(system), m_debug_interface(system, m_symbol_db),
       m_system(system)
 {
+  // Called once on launch
+  InitUDPQueue();
 }
 
 PowerPCManager::~PowerPCManager() = default;
@@ -274,6 +281,7 @@ void PowerPCManager::Init(CPUCore cpu_core)
 
 void PowerPCManager::Reset()
 {
+  // Called once when game starts
   m_ppc_state.pagetable_base = 0;
   m_ppc_state.pagetable_hashmask = 0;
   m_ppc_state.tlb = {};
@@ -301,6 +309,7 @@ void PowerPCManager::ScheduleInvalidateCacheThreadSafe(u32 address)
 
 void PowerPCManager::Shutdown()
 {
+  // called once when game terminates
   CPUThreadConfigCallback::RemoveConfigChangedCallback(m_registered_config_callback_id);
   InjectExternalCPUCore(nullptr);
   m_system.GetJitInterface().Shutdown();
@@ -630,7 +639,7 @@ bool PowerPCManager::CheckBreakPoints()
 {
   const TBreakPoint* bp = m_breakpoints.GetBreakpoint(m_ppc_state.pc);
 
-  if (!bp || !bp->is_enabled || !EvaluateCondition(m_system, bp->condition))
+  if (!bp || !bp->is_enabled || !EvaluateCondition(m_system, bp->condition) || bp->file != "main.dol")
     return false;
 
   if (bp->log_on_hit)
@@ -643,6 +652,19 @@ bool PowerPCManager::CheckBreakPoints()
                    m_ppc_state.gpr[8], m_ppc_state.gpr[9], m_ppc_state.gpr[10], m_ppc_state.gpr[11],
                    m_ppc_state.gpr[12], LR(m_ppc_state));
   }
+  if (bp->break_on_hit)
+    return true;
+  return false;
+}
+
+bool PowerPCManager::CheckSeqBreakPoints(std::string file, u32 offset)
+{
+  const TBreakPoint* bp = m_breakpoints.GetBreakpoint(offset);
+
+  if (!bp || !bp->is_enabled || !EvaluateCondition(m_system, bp->condition) ||
+      file.find(bp->file) == std::string::npos)
+    return false;
+
   if (bp->break_on_hit)
     return true;
   return false;
@@ -726,8 +748,105 @@ void CheckExternalExceptionsFromJIT(PowerPCManager& power_pc)
   power_pc.CheckExternalExceptions();
 }
 
-void CheckAndHandleBreakPointsFromJIT(PowerPCManager& power_pc)
+void CheckAndHandleBreakPointsFromJIT(PowerPCManager& power_pc, Memory::MemoryManager& memory)
 {
-  power_pc.CheckAndHandleBreakPoints();
+  bool breakpoint_hit = power_pc.CheckSeqExecution(power_pc, memory);
+  if (!breakpoint_hit)
+  {
+    power_pc.CheckAndHandleBreakPoints();
+  }
+}
+
+void PowerPCManager::InitUDPQueue()
+{
+  // this needs to be called exactly once
+  m_udp_queue.Reset("Seq UDP Queue");
+}
+
+bool PowerPCManager::CheckSeqExecution(PowerPCManager& power_pc, Memory::MemoryManager& memory)
+{
+  const u32 pc = m_ppc_state.pc;
+  if (!IsSeqBreakpoint(pc))
+  {
+    return false; // not a seq breakpoint, return and check normal breakpoints
+  }
+
+  // The start of the seq file is at*(int*)(seq_p[5] + 0x5c)
+  const u32 seq_p = m_ppc_state.gpr[3];
+  const u32 temp_p = memory.Read_U32(seq_p + 0x14);
+  const u32 seq_start = memory.Read_U32(temp_p + 0x5c);
+
+  // The current program counter of the seq file is in general purpose register 5
+  const u32 seq_pc = m_ppc_state.gpr[5];
+
+  // Calculate the offset in the seq file
+  const u32 seq_offset = seq_pc - seq_start;
+
+  // Get the file name, which can be found at seq_p[8][5]
+  const u32 file_entry = memory.Read_U32(seq_p + 0x20);
+  auto file_name_str = memory.GetString(file_entry + 0x14);
+
+  // Get the current opcode being executed
+  const u32 opcode = memory.Read_U32(seq_pc);
+
+  // Create UDP packet
+  std::vector<char> bytes;
+  bytes.push_back(static_cast<uint8_t>((seq_offset >> 24) & 0xFF));
+  bytes.push_back(static_cast<uint8_t>((seq_offset >> 16) & 0xFF));
+  bytes.push_back(static_cast<uint8_t>((seq_offset >> 8) & 0xFF));
+  bytes.push_back(static_cast<uint8_t>(seq_offset & 0xFF));
+  bytes.push_back(static_cast<uint8_t>((opcode >> 24) & 0xFF));
+  bytes.push_back(static_cast<uint8_t>((opcode >> 16) & 0xFF));
+  bytes.push_back(static_cast<uint8_t>((opcode >> 8) & 0xFF));
+  bytes.push_back(static_cast<uint8_t>(opcode & 0xFF));
+  bytes.push_back(static_cast<uint8_t>((pc >> 24) & 0xFF));
+  bytes.push_back(static_cast<uint8_t>((pc >> 16) & 0xFF));
+  bytes.push_back(static_cast<uint8_t>((pc >> 8) & 0xFF));
+  bytes.push_back(static_cast<uint8_t>(pc & 0xFF));
+  bytes.insert(bytes.end(), file_name_str.begin(), file_name_str.end());
+  bytes.push_back(0); // null terminator
+
+  // Asynchronously send UDP packet
+  m_udp_queue.Push(bytes);
+
+  // Check for SEQ breakpoints
+  if (recent_seq_bp)
+  {
+    // Needed to prevent infinite breaking on the same SEQ breakpoint
+    recent_seq_bp = false;
+  }
+  else if (CheckSeqBreakPoints(file_name_str, seq_offset))
+  {
+    m_system.GetCPU().Break();
+    if (GDBStub::IsActive())
+      GDBStub::TakeControl();
+    recent_seq_bp = true;
+    return true;
+  }
+  return false;
+}
+
+bool PowerPCManager::IsSeqBreakpoint(u32 address)
+{
+  auto& game_id = SConfig::GetInstance().GetGameID();
+  auto& gnt4 = "G4NJDA";
+  auto& scon4 = "SG4JDA";
+  auto& qole = "G4QJDA";
+  if ((game_id == gnt4) || (game_id == scon4) || (game_id == qole))
+  {
+    switch (address)
+    {
+    case 0x800c903c:
+    case 0x800c9094:
+    case 0x800c9138:
+    case 0x800c91a0:
+    case 0x800c8e30:
+    case 0x800c8ef8:
+    case 0x80106f10:
+      // Enable SEQ breakpoints for known games based on GNT4
+      return true;
+    }
+  }
+  return false;
 }
 }  // namespace PowerPC
